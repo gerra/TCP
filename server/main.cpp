@@ -4,8 +4,8 @@
 #include <cstdio>
 #include <unistd.h>
 
-int main(int argc, char *argv[]) {
-    server myServer("127.0.0.1", "2323");
+int main() {
+    server myServer("127.0.0.1", "2323", 10);
     myServer.start();
     return 0;
 }

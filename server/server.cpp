@@ -4,10 +4,10 @@ server::server() {
 }
 
 
-server::server(char * addr, char * port) {
+server::server(char * addr, char * port, int clientsCount) {
     tcpConnection.createAddress(addr, port);
     listener = tcpConnection.createBindingSocket();
-    tcpConnection.startListening(10);
+    tcpConnection.startListening(clientsCount);
 }
 
 void server::start() {

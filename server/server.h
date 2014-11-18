@@ -11,7 +11,7 @@ class server {
     int listener; // listening socket
 public:
     server();
-    server(char * addr, char * port);
+    server(char * addr, char * port, int clientsCount);
     void start();
 };
 
