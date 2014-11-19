@@ -7,17 +7,19 @@
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
+#include <arpa/inet.h>
+#include <string>
+
+enum ERRORS {
+    CONNECT_ERROR,
+    BIND_ERROR,
+    LISTEN_ERROR,
+    SOCKET_ERROR,
+    GETADDR_ERROR,
+    SETSOCK_ERROR
+};
 
 class TCPConnection {
-
-    enum ERRORS {
-        BIND_ERROR,
-        LISTEN_ERROR,
-        SOCKET_ERROR,
-        GETADDR_ERROR,
-        SETSOCK_ERROR
-    };
-
     addrinfo hints;
     addrinfo *res;
     int sockfd;
@@ -27,9 +29,9 @@ public:
     TCPConnection();
     ~TCPConnection();
     void createAddress(char * address, char * port);
-    void createConnection();
+    // these 2 functions return socket file descriptor
+    int createConnection();
     int createBindingSocket();
-    void startListening(int count);
 
     int getSocket();
 };
@@ -37,7 +39,12 @@ public:
 void sendToFD(int fd, char * msg, int msgSize);
 void sendToAllFromFDSet(int fdMax, fd_set * fds,
                         char * msg, int msgSize,
-                        std::set<int> * except);
+                        std::set<int> * exception);
+void sendToAllFromSet(std::set<int> const& st,
+                      char *msg, int msgSize,
+                      std::set<int> * exception);
+void startListening(int fd, int count);
+std::string getAddrAsString(sockaddr_storage & addr);
 
 /*
  * returns:

@@ -1,9 +1,6 @@
 #include "tcpconnection.h"
 
 #include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
 TCPConnection::TCPConnection() {
     connectionWasCreated = false;
@@ -22,8 +19,9 @@ void TCPConnection::createAddress(char *address, char *port) {
     }
 }
 
-void TCPConnection::createConnection() {
+int TCPConnection::createConnection() {
     addrinfo * stableAddr = NULL;
+    int resSock = -1;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
         if ((sockfd = socket(stableAddr->ai_family,
                              stableAddr->ai_socktype,
@@ -36,13 +34,15 @@ void TCPConnection::createConnection() {
             perror("connect: ");
             continue;
         }
+        resSock = sockfd;
         break; // we found good address
     }
     if (stableAddr == NULL) {
         fprintf(stderr, "failed to connect\n");
-        exit(2);
+        exit(CONNECT_ERROR);
     }
     connectionWasCreated = true;
+    return resSock;
 }
 
 int TCPConnection::createBindingSocket() {
@@ -79,13 +79,6 @@ int TCPConnection::createBindingSocket() {
     return resSock;
 }
 
-void TCPConnection::startListening(int count) {
-    if (listen(sockfd, count) == -1) {
-        perror("listen");
-        exit(LISTEN_ERROR);
-    }
-}
-
 int TCPConnection::getSocket() {
     return sockfd;
 }
@@ -104,11 +97,23 @@ void sendToFD(int fd, char *msg, int msgSize) {
 }
 
 void sendToAllFromFDSet(int fdMax, fd_set *fds, char *msg,
-                        int msgSize, std::set<int> * except = NULL) {
+                        int msgSize, std::set<int> * exception) {
     for (int i = 0; i <= fdMax; i++) {
         if (FD_ISSET(i, fds) &&
-                ((except && except->find(i) == except->end()) || !except)) {
+                ((exception && exception->find(i) == exception->end()) ||
+                        !exception)) {
             sendToFD(i, msg, msgSize);
+        }
+    }
+}
+
+void sendToAllFromSet(std::set<int> const& st, char *msg,
+                      int msgSize, std::set<int> * exception) {
+    std::set<int>::iterator it = st.begin();
+    for (; it != st.end(); ++it) {
+        if (!exception ||
+                (exception && exception->find(*it) == exception->end())) {
+            sendToFD(*it, msg, msgSize);
         }
     }
 }
@@ -125,4 +130,25 @@ int recieveFromFD(int fd, char * buf) {
         }
     }
     return nbytes;
+}
+
+void startListening(int fd, int count) {
+    if (listen(fd, count) == -1) {
+        perror("listen");
+        exit(LISTEN_ERROR);
+    }
+}
+
+void *getInAddr(sockaddr *sa) {
+    if (sa->sa_family == AF_INET) {
+        return &(((sockaddr_in*)sa)->sin_addr);
+    }
+    return &(((sockaddr_in6*)sa)->sin6_addr);
+}
+
+std::string getAddrAsString(sockaddr_storage &addr) {
+    char s[INET6_ADDRSTRLEN];
+    inet_ntop(addr.ss_family, getInAddr((sockaddr*)&addr), s, sizeof(s));
+    std::string ss(s);
+    return ss;
 }
