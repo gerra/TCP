@@ -10,7 +10,7 @@ TCPConnection::TCPConnection() {
 
 void TCPConnection::createAddress(char *address, char *port) {
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC; // whatever ipv4 pr ipv6
+    hints.ai_family = AF_UNSPEC; // whatever ipv4 or ipv6
     hints.ai_socktype = SOCK_STREAM; // tcp connection
     int rv;
     if ((rv = getaddrinfo(address, port, &hints, &res)) != 0) {
@@ -79,10 +79,6 @@ int TCPConnection::createBindingSocket() {
     return resSock;
 }
 
-int TCPConnection::getSocket() {
-    return sockfd;
-}
-
 TCPConnection::~TCPConnection() {
     freeaddrinfo(res);
     if (sockfd != -1) {
@@ -118,9 +114,9 @@ void sendToAllFromSet(std::set<int> const& st, char *msg,
     }
 }
 
-int recieveFromFD(int fd, char * buf) {
+int recieveFromFD(int fd, char * buf, int maxSize) {
     int nbytes;
-    if ((nbytes = recv(fd, buf, sizeof(*buf), 0)) <= 0) {
+    if ((nbytes = recv(fd, buf, maxSize, 0)) <= 0) {
         if (nbytes == 0) {
             fprintf(stdout, "socket %d hung up\n", fd);
             return 0;
@@ -151,4 +147,24 @@ std::string getAddrAsString(sockaddr_storage &addr) {
     inet_ntop(addr.ss_family, getInAddr((sockaddr*)&addr), s, sizeof(s));
     std::string ss(s);
     return ss;
+}
+
+#include <sys/ioctl.h>
+int setNonblocking(int fd) {
+    int flags;
+
+    /* If they have O_NONBLOCK, use the Posix way to do it */
+#if defined O_NONBLOCK
+    /* Fixme: O_NONBLOCK is defined but broken on SunOS 4.1.x and AIX 3.2.5. */
+    if (-1 == (flags = fcntl(fd, F_GETFL, 0))) {
+        flags = 0;
+    }
+    return {
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+#else
+    /* Otherwise, use the old way of doing it */
+    flags = 1;
+    return ioctl(fd, FIONBIO, &flags);
+#endif
 }

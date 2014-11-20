@@ -16,7 +16,8 @@ enum ERRORS {
     LISTEN_ERROR,
     SOCKET_ERROR,
     GETADDR_ERROR,
-    SETSOCK_ERROR
+    SETSOCK_ERROR,
+    SELECT_ERROR
 };
 
 class TCPConnection {
@@ -26,14 +27,13 @@ class TCPConnection {
     bool connectionWasCreated;
     bool bindingWasCreated;
 public:
+
     TCPConnection();
     ~TCPConnection();
     void createAddress(char * address, char * port);
     // these 2 functions return socket file descriptor
     int createConnection();
     int createBindingSocket();
-
-    int getSocket();
 };
 
 void sendToFD(int fd, char * msg, int msgSize);
@@ -52,6 +52,7 @@ std::string getAddrAsString(sockaddr_storage & addr);
  *  = 0 if fd was closed
  *  > 0 is msgSize
 */
-int recieveFromFD(int fd, char * buf);
+int recieveFromFD(int fd, char * buf, int maxSize);
+int setNonblocking(int fd);
 
 #endif // TCPCONNECTION_H
