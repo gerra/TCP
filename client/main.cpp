@@ -4,9 +4,13 @@
 
 #include <cstring>
 
-const int MAX_EVENTS = 10;
+#include "client.h"
 
 int main() {
+    client myClient;
+    myClient.connectTo("127.0.0.1", "2323");
+    myClient.start();
+    /*
     //char addr[100], port[10];
     //std::cin >> addr >> port;
     char * addr, * port;
@@ -41,7 +45,7 @@ int main() {
                 break;
             } else if (events[0].events & EPOLLIN) {
                 char buf[500];
-                int nbytes = recieveFromFD(curFD, buf);
+                int nbytes = recieveFromFD(curFD, buf, 500);
                 // = 0 - hung up
                 // < 0 - error with recieve
                 if (nbytes > 0) {
@@ -52,5 +56,5 @@ int main() {
         }
     }
 
-    return 0;
+    return 0;*/
 }

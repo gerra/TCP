@@ -17,15 +17,48 @@ enum ERRORS {
     SOCKET_ERROR,
     GETADDR_ERROR,
     SETSOCK_ERROR,
-    SELECT_ERROR
+    SELECT_ERROR,
+    EPOLL_ERROR
 };
+
+/*
+class TCPSocket {
+    int fd;
+public:
+    TCPSocket() {
+
+    }
+
+    TCPSocket(string address, string port) {
+
+    }
+
+    TCPSocket(addrinfo *addr) {
+        if (addr->ai_socktype != SOCK_STREAM) {
+            throw "*addr socktype not SOCK_STREAM(may be you did use UDP?)";
+        }
+        if ((fd == socket(addr->ai_family,
+                          addr->ai_socktype,
+                          addr->ai_protocol)) == -1) {
+            perror("socket");
+            throw "unnable to create socket";
+        }
+    }
+
+    int getFD() {
+        return fd;
+    }
+
+    ~TCPSocket() {
+        close(fd);
+    }
+};
+*/
 
 class TCPConnection {
     addrinfo hints;
     addrinfo *res;
     int sockfd;
-    bool connectionWasCreated;
-    bool bindingWasCreated;
 public:
 
     TCPConnection();
@@ -51,7 +84,7 @@ std::string getAddrAsString(sockaddr_storage & addr);
  *  < 0 if error
  *  = 0 if fd was closed
  *  > 0 is msgSize
-*/
+ */
 int recieveFromFD(int fd, char * buf, int maxSize);
 int setNonblocking(int fd);
 

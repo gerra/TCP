@@ -4,6 +4,7 @@
 #include "../tcpconnection.h"
 #include <sys/epoll.h>
 #include <functional>
+#include <QtDebug>
 
 class server {  
     TCPConnection tcpConnection;
@@ -14,9 +15,8 @@ class server {
 
     void execute();
 public:
-    server();
-    ~server();
     server(char * addr, char * port, int clientsCount);
+    ~server();
     void start();
 };
 

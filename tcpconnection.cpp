@@ -3,8 +3,6 @@
 #include <string.h>
 
 TCPConnection::TCPConnection() {
-    connectionWasCreated = false;
-    bindingWasCreated = false;
     sockfd = -1;
 }
 
@@ -41,7 +39,6 @@ int TCPConnection::createConnection() {
         fprintf(stderr, "failed to connect\n");
         exit(CONNECT_ERROR);
     }
-    connectionWasCreated = true;
     return resSock;
 }
 
@@ -75,7 +72,6 @@ int TCPConnection::createBindingSocket() {
         fprintf(stderr, "failed to bind\n");
         exit(2);
     }
-    bindingWasCreated = true;
     return resSock;
 }
 

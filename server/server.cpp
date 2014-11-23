@@ -1,25 +1,19 @@
 #include "server.h"
-#define DEBUG
-
-server::server() {
-}
-
+#include <iostream>
 
 server::server(char * addr, char * port, int clientsCount) {
     tcpConnection.createAddress(addr, port);
     listener = tcpConnection.createBindingSocket();
+    setNonblocking(listener);
     startListening(listener, clientsCount);
 }
 
 server::~server() {
     close(epollFD);
+    close(listener);
     for (auto it = clients.begin(); it != clients.end(); ++it) {
         close(*it);
     }
-}
-
-void addEvent() {
-
 }
 
 void server::execute() {
@@ -27,14 +21,13 @@ void server::execute() {
     epoll_event ev;
     epoll_event events[MAX_EVENTS];
     int nfds = epoll_wait(epollFD, events, MAX_EVENTS, -1);
-#ifdef DEBUG
-    printf("changed %d fd\n", nfds);
-#endif
+    qDebug() << "changed " << nfds << " sockets:";
     for (int i = 0; i < nfds; i++) {
-        int curFD = events[i].data.fd;
-#ifdef DEBUG
-        printf("on sock %d event %d\n", curFD, events[i].events & EPOLLRDHUP);
-#endif
+        typedef std::pair<int, std::function<void(char *, int)> > PIF;
+        PIF * curEventHandler;
+        curEventHandler = static_cast<PIF*>(events[i].data.ptr);
+        int curFD = curEventHandler->first;
+        qDebug() << "\ton sock " << curFD << " happened event " << events[i].events << ":";
         if (curFD == listener) {
             sockaddr_storage theirAddr;
             socklen_t addrLen;
@@ -43,45 +36,46 @@ void server::execute() {
             if (newFD == -1) {
                 perror("accept");
             } else {
-                /*std::pair<int, std::function<void()> > handler;
-                handler.first = newFD;
-                handler.second = std::function<void>([=]() {
+                setNonblocking(newFD);
+                PIF * handler = new PIF();
+                handler->first = newFD;
+                handler->second = std::function<void(char *, int)>([=](char *msg, int msgSize) {
+                    //std::cout << "i'm " << " " << newFD << "\n";
+                    sendToFD(newFD, msg, msgSize);
+                });
 
-                });*/
-
-                ev.data.fd = newFD;
+                ev.data.ptr = handler;
                 ev.events = EPOLLIN | EPOLLRDHUP;
 
                 epoll_ctl(epollFD, EPOLL_CTL_ADD, newFD, &ev);
                 clients.insert(newFD);
-                printf("server got connection from %s to socket %d\n",
+                printf("\t\tserver got connection from %s to new socket %d\n",
                        getAddrAsString(theirAddr).c_str(), newFD);
-#ifdef DEBUG
-                printf("socket %d added\n", newFD);
-#endif
-/*???*/                setNonblocking(newFD);
             }
         } else {
             if (events[i].events & (EPOLLRDHUP | EPOLLHUP)) {
                 printf("socket %d hung up!!!\n", curFD);
                 close(curFD);
                 clients.erase(curFD);
+                delete curEventHandler;
             } else if (events[i].events & EPOLLIN) {
                 char buf[500];
                 int nbytes = recieveFromFD(curFD, buf, 500);
-#ifdef DEBUG
-                printf("recieved %d bytes:\n", nbytes);
-#endif
+                qDebug() << "\t\trecieved " << nbytes << " bytes:";
                 if (nbytes == 0) {
                     close(curFD);
                     clients.erase(curFD);
+                    delete curEventHandler;
                 } else if (nbytes > 0) {
                     buf[nbytes] = '\0';
                     printf("%s", buf);
                     std::set<int> ex;
                     ex.insert(curFD);
                     sendToAllFromSet(clients, buf, nbytes, &ex);
+                    //curEventHandler->second(buf, nbytes);
+                    //std::cout << &curEventHandler->second << "\n";
                 }
+
             }
         }
     }
@@ -89,26 +83,26 @@ void server::execute() {
 
 void server::start() {
     printf("Starting server...\n");
-
-    // using epoll
-
     epollFD = epoll_create(10);
     if (epollFD == -1) {
         perror("epoll_create");
-        exit(1);
+        exit(EPOLL_ERROR);
     }
+    qDebug() << "listener socket: " << listener;
+    qDebug() << "epoll socket: " << epollFD;
 
-#ifdef DEBUG
-    printf("listener socket: %d\n", listener);
-    printf("epoll socket: %d\n", epollFD);
-#endif
-
+    std::pair<int, std::function<void()> > handler;
+    handler.first = listener;
+    handler.second = std::function<void()>([=]() {
+        std::cout << listener << "\n";
+    });
     epoll_event ev;
+    ev.data.ptr = &handler;
     ev.events = EPOLLIN;
-    ev.data.fd = listener;
+
     if ((epoll_ctl(epollFD, EPOLL_CTL_ADD, listener, &ev)) == -1) {
         perror("epoll_ctl");
-        exit(2);
+        exit(EPOLL_ERROR);
     }
 
     printf("Server ready to get data\n");

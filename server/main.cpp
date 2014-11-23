@@ -7,23 +7,25 @@
 
 #include <iostream>
 
-void k(void* a) {
-    typedef std::function<void()>* FV;
-    FV f = static_cast<FV>(a);
-    (f->operator())();
-}
-
 int main() {
-    server myServer("127.0.0.1", "2323", 10);
+    server myServer("192.168.0.216", "2323", 10);
     myServer.start();
-/*
-    std::function<void()> a;
-    int y = 7;
-    a = std::function<void()>([&y]() {
-        printf("lambda %d\n", y);
+    std::function<void()> a([]() {
+        std::cout << "void()\n";
     });
-    y = 9;
-    k(&a);
-*/
+    std::function<int(int)> b([](int x = 0) -> int {
+        std::cout << "int(int)\n" << x << "\n";
+        return 23 + x;
+    });
+    void * aa = &a;
+    void * bb = &b;
+
+
+    typedef std::function<void(int)> FV;
+
+    FV x = *(static_cast<FV *>(aa));
+    x(5);
+    //x();
+
     return 0;
 }
