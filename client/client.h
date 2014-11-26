@@ -22,6 +22,7 @@ public:
     client();
     void connectTo(char *addr, char *port);
     void start();
+    ~client();
 };
 
 #endif // CLIENT_H

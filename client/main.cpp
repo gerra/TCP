@@ -1,5 +1,4 @@
 #include <iostream>
-#include "../tcpconnection.h"
 #include <sys/epoll.h>
 
 #include <cstring>
@@ -8,8 +7,13 @@
 
 int main() {
     client myClient;
-    myClient.connectTo("127.0.0.1", "2323");
-    myClient.start();
+    try {
+        myClient.connectTo("127.0.0.1", "2323");
+        myClient.start();
+    } catch (ERRORS e) {
+        std::cout << getStringByError(e) << "\n";
+    }
+
     /*
     //char addr[100], port[10];
     //std::cin >> addr >> port;

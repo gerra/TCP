@@ -4,15 +4,21 @@ client::client() {
 
 }
 
+client::~client() {
+    epoll_ctl(epollFD, EPOLL_CTL_DEL, talker, NULL);
+    close(epollFD);
+    close(talker);
+}
+
 int client::execute() {
     const int MAX_EVENTS = 10;
     epoll_event events[MAX_EVENTS];
     int nfds = epoll_wait(epollFD, events, MAX_EVENTS, -1);
-    if (nfds == 1) {
-        int curFD = events[0].data.fd;
-        if (events[0].events & EPOLLRDHUP) {
+    for (int i = 0; i < nfds; i++) {
+        int curFD = events[i].data.fd;
+        if (events[i].events & EPOLLRDHUP) {
             return -1;
-        } else if (events[0].events & EPOLLIN) {
+        } else if (events[i].events & EPOLLIN) {
             char buf[500];
             int nbytes = recieveFromFD(curFD, buf, 500);
             if (nbytes == 0) {
@@ -30,6 +36,7 @@ int client::execute() {
 void client::connectTo(char *addr, char *port) {
     tcpConnection.createAddress(addr, port);
     talker = tcpConnection.createConnection();
+    setNonblocking(talker);
 }
 
 void client::start() {
@@ -37,14 +44,15 @@ void client::start() {
     epollFD = epoll_create(10);
     if (epollFD == -1) {
         perror("epoll_create");
-        exit(EPOLL_ERROR);
+        //exit(EPOLL_ERROR);
+        throw EPOLL_ERROR;
     }
     epoll_event ev;
     ev.data.fd = talker;
     ev.events = EPOLLIN | EPOLLRDHUP;
     epoll_ctl(epollFD, EPOLL_CTL_ADD, talker, &ev);
 
-    char * msg = "Hello, world!!!\n";
+    char * msg = "Hello, world!!!\n\0";
     sendToFD(talker, msg, strlen(msg));
 
     while (running) {

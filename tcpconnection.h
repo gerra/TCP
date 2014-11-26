@@ -21,46 +21,40 @@ enum ERRORS {
     EPOLL_ERROR
 };
 
-/*
-class TCPSocket {
-    int fd;
+/*std::string str_errors[8] = {
+    "connect error",
+    "bind error",
+    "listen error",
+    "socket error",
+    "getaddr error",
+    "setsock error",
+    "select error",
+    "epoll error"
+};*/
+
+
+/*class TCPSocket {
+    int sockfd;
 public:
-    TCPSocket() {
-
-    }
-
-    TCPSocket(string address, string port) {
-
-    }
-
-    TCPSocket(addrinfo *addr) {
-        if (addr->ai_socktype != SOCK_STREAM) {
-            throw "*addr socktype not SOCK_STREAM(may be you did use UDP?)";
-        }
-        if ((fd == socket(addr->ai_family,
-                          addr->ai_socktype,
-                          addr->ai_protocol)) == -1) {
-            perror("socket");
-            throw "unnable to create socket";
-        }
+    TCPSocket(int fd) {
+        sockfd = fd;
     }
 
     int getFD() {
-        return fd;
+        return sockfd;
     }
 
     ~TCPSocket() {
-        close(fd);
+        close(sockfd);
     }
-};
-*/
+};*/
+
 
 class TCPConnection {
     addrinfo hints;
     addrinfo *res;
     int sockfd;
-public:
-
+public:    
     TCPConnection();
     ~TCPConnection();
     void createAddress(char * address, char * port);
@@ -87,5 +81,7 @@ std::string getAddrAsString(sockaddr_storage & addr);
  */
 int recieveFromFD(int fd, char * buf, int maxSize);
 int setNonblocking(int fd);
+
+std::string getStringByError(ERRORS e);
 
 #endif // TCPCONNECTION_H

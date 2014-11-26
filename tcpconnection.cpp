@@ -13,7 +13,8 @@ void TCPConnection::createAddress(char *address, char *port) {
     int rv;
     if ((rv = getaddrinfo(address, port, &hints, &res)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        exit(GETADDR_ERROR);
+        //exit(GETADDR_ERROR);
+        throw GETADDR_ERROR;
     }
 }
 
@@ -21,6 +22,9 @@ int TCPConnection::createConnection() {
     addrinfo * stableAddr = NULL;
     int resSock = -1;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
+        if (stableAddr->ai_socktype != SOCK_STREAM) {
+            continue;
+        }
         if ((sockfd = socket(stableAddr->ai_family,
                              stableAddr->ai_socktype,
                              stableAddr->ai_protocol)) == -1) {
@@ -37,7 +41,8 @@ int TCPConnection::createConnection() {
     }
     if (stableAddr == NULL) {
         fprintf(stderr, "failed to connect\n");
-        exit(CONNECT_ERROR);
+        //exit(CONNECT_ERROR);
+        throw CONNECT_ERROR;
     }
     return resSock;
 }
@@ -46,6 +51,9 @@ int TCPConnection::createBindingSocket() {
     addrinfo * stableAddr = NULL;
     int resSock = -1;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
+        if (stableAddr->ai_socktype != SOCK_STREAM) {
+            continue;
+        }
         if ((sockfd = socket(stableAddr->ai_family,
                              stableAddr->ai_socktype,
                              stableAddr->ai_protocol)) == -1) {
@@ -57,7 +65,8 @@ int TCPConnection::createBindingSocket() {
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                        &yes, sizeof(int)) == -1) {
             perror("setsockport");
-            exit(SETSOCK_ERROR);
+            //exit(SETSOCK_ERROR);
+            throw SETSOCK_ERROR;
         }
         if (bind(sockfd, stableAddr->ai_addr,
                  stableAddr->ai_addrlen) == -1) {
@@ -70,7 +79,8 @@ int TCPConnection::createBindingSocket() {
     }
     if (stableAddr == NULL) {
         fprintf(stderr, "failed to bind\n");
-        exit(2);
+        //exit(2);
+        throw BIND_ERROR;
     }
     return resSock;
 }
@@ -127,7 +137,8 @@ int recieveFromFD(int fd, char * buf, int maxSize) {
 void startListening(int fd, int count) {
     if (listen(fd, count) == -1) {
         perror("listen");
-        exit(LISTEN_ERROR);
+        //exit(LISTEN_ERROR);
+        throw LISTEN_ERROR;
     }
 }
 
@@ -163,4 +174,27 @@ int setNonblocking(int fd) {
     flags = 1;
     return ioctl(fd, FIONBIO, &flags);
 #endif
+}
+
+std::string getStringByError(ERRORS e) {
+    switch (e) {
+        case (CONNECT_ERROR):
+            return "connect error";
+        case (BIND_ERROR):
+            return "bind error";
+        case (LISTEN_ERROR):
+            return "listen error";
+        case (SOCKET_ERROR):
+            return "socket error";
+        case (GETADDR_ERROR):
+            return "geta ddress error";
+        case (SETSOCK_ERROR):
+            return "set socket error";
+        case (SELECT_ERROR):
+            return "select error";
+        case (EPOLL_ERROR):
+            return "epoll error";
+        default:
+            return "unknown error";
+    }
 }

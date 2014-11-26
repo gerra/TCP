@@ -14,8 +14,10 @@ class server {
     std::set<int> clients; // file descriptors of connected clients
 
     void execute();
+
+    std::function<void()> doAfterAccept;
 public:
-    server(char * addr, char * port, int clientsCount);
+    server(char *addr, char *port, int clientsCount);
     ~server();
     void start();
 };

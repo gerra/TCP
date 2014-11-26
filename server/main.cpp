@@ -6,26 +6,15 @@
 #include <functional>
 
 #include <iostream>
+#include <vector>
+std::vector<int> a(10, 10);
 
 int main() {
-    server myServer("192.168.0.216", "2323", 10);
-    myServer.start();
-    std::function<void()> a([]() {
-        std::cout << "void()\n";
-    });
-    std::function<int(int)> b([](int x = 0) -> int {
-        std::cout << "int(int)\n" << x << "\n";
-        return 23 + x;
-    });
-    void * aa = &a;
-    void * bb = &b;
-
-
-    typedef std::function<void(int)> FV;
-
-    FV x = *(static_cast<FV *>(aa));
-    x(5);
-    //x();
-
+    try {
+        server myServer("127.0.0.1", "2323", 10);
+        myServer.start();
+    } catch (ERRORS e) {
+        std::cout << getStringByError(e) << "\n";
+    }
     return 0;
 }
