@@ -10,10 +10,11 @@ int main() {
     try {
         myClient.connectTo("127.0.0.1", "2323");
         myClient.start();
-    } catch (ERRORS e) {
-        std::cout << getStringByError(e) << "\n";
+    } catch (TCPException& e) {
+        std::cout << e.getMessage() << "\n";
     }
 
+//    return 0;
     /*
     //char addr[100], port[10];
     //std::cin >> addr >> port;

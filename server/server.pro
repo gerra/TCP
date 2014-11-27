@@ -20,8 +20,14 @@ TEMPLATE = app
 
 SOURCES += main.cpp \
     ../tcpconnection.cpp \
-    server.cpp
+    server.cpp \
+    ../epollhandler.cpp \
+    ../tcpsocket.cpp \
+    ../tcpexception.cpp
 
 HEADERS += \
     ../tcpconnection.h \
-    server.h
+    server.h \
+    ../epollhandler.h \
+    ../tcpsocket.h \
+    ../tcpexception.h

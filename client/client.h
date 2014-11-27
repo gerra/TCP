@@ -8,7 +8,7 @@
 class client
 {
     TCPConnection tcpConnection;
-    int talker; // client socket
+    TCPSocket *talker; // client socket
     int epollFD; // epoll socket
     bool running;
 

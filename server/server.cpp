@@ -4,120 +4,88 @@
 #include <stdint.h>
 
 typedef std::function<void(std::uint32_t)> FVUI32;
-typedef std::pair<int, FVUI32 > PIF;
+typedef std::pair<TCPSocket *, FVUI32 > PSF;
 
 server::server(char * addr, char * port, int clientsCount) {
+    listener = NULL;
+    epoll = NULL;
+
     tcpConnection.createAddress(addr, port);
     listener = tcpConnection.createBindingSocket();
-    setNonblocking(listener);
-    startListening(listener, clientsCount);
+    listener->setNonBlocking();
+    listener->startListening(clientsCount);
 }
 
 server::~server() {
+    qDebug() << "deleting server starts...";
     for (auto it = clients.begin(); it != clients.end(); ++it) {
-        epoll_ctl(epollFD, EPOLL_CTL_DEL, *it, NULL);
-        close(*it);
+        // TODO try, catch
+        if (epoll != NULL) {
+            epoll->deleteSocket(*it);
+        }
+        delete *it;
     }
-    close(epollFD);
-    close(listener);
-    //this = NULL;
+    if (listener != NULL) {
+        if (epoll != NULL) {
+            //epoll_ctl(epollFD, EPOLL_CTL_DEL, listener->getFD(), NULL);
+            epoll->deleteSocket(listener);
+            delete epoll;
+        }
+        delete listener;
+    } else {
+        if (epoll != NULL) {
+            delete epoll;
+        }
+    }
+    qDebug() << "...deleting server ends";
 }
 
 void server::execute() {
     const int MAX_EVENTS = 10;
     epoll_event events[MAX_EVENTS];
-    int nfds = epoll_wait(epollFD, events, MAX_EVENTS, -1);
+    //int nfds = epoll_wait(epollFD, events, MAX_EVENTS, -1);
+    int nfds = epoll->getEvents(events, MAX_EVENTS);
+    if (nfds < 0) {
+        return;
+    }
     qDebug() << "changed " << nfds << " sockets:";
     for (int i = 0; i < nfds; i++) {
-        PIF *curEventHandler = static_cast<PIF *>(events[i].data.ptr);
-        curEventHandler->second(events[i].events);
-        /*typedef std::pair<int, std::function<void(char *, int)> > PIF;
-        PIF * curEventHandler;
-        curEventHandler = static_cast<PIF*>(events[i].data.ptr);
-        int curFD = curEventHandler->first;
-
-        qDebug() << "\ton sock " << curFD << " happened event " << events[i].events << ":";
-        if (curFD == listener) {
-            sockaddr_storage theirAddr;
-            socklen_t addrLen;
-            addrLen = sizeof(theirAddr);
-            int newFD = accept(listener, (sockaddr *)&theirAddr, &addrLen);
-            if (newFD == -1) {
-                perror("accept");
-            } else {
-                setNonblocking(newFD);
-                PIF * handler = new PIF();
-                handler->first = newFD;
-                handler->second = std::function<void(char *, int)>([=](char *msg, int msgSize) {
-                    //std::cout << "i'm " << " " << newFD << "\n";
-                    sendToFD(newFD, msg, msgSize);
-                });
-
-                ev.data.ptr = handler;
-                ev.events = EPOLLIN | EPOLLRDHUP;
-
-                epoll_ctl(epollFD, EPOLL_CTL_ADD, newFD, &ev);
-                clients.insert(newFD);
-                printf("\t\tserver got connection from %s to new socket %d\n",
-                       getAddrAsString(theirAddr).c_str(), newFD);
-            }
-        } else {
-            if (events[i].events & (EPOLLRDHUP | EPOLLHUP)) {
-                printf("socket %d hung up!!!\n", curFD);
-                close(curFD);
-                clients.erase(curFD);
-                delete curEventHandler;
-            } else if (events[i].events & EPOLLIN) {
-                char buf[500];
-                int nbytes = recieveFromFD(curFD, buf, 500);
-                qDebug() << "\t\trecieved " << nbytes << " bytes:";
-                if (nbytes == 0) {
-                    close(curFD);
-                    clients.erase(curFD);
-                    delete curEventHandler;
-                } else if (nbytes > 0) {
-                    buf[nbytes] = '\0';
-                    printf("%s", buf);
-                    std::set<int> ex;
-                    ex.insert(curFD);
-                    sendToAllFromSet(clients, buf, nbytes, &ex);
-                    //curEventHandler->second(buf, nbytes);
-                    //std::cout << &curEventHandler->second << "\n";
-                }
-
-            }
-        }*/
+        PSF *curEventHandler = static_cast<PSF *>(events[i].data.ptr);
+        TCPSocket *curSocket = curEventHandler->first;
+        if (curSocket == listener || clients.find(curSocket) != clients.end()) {
+            curEventHandler->second(events[i].events);
+        }
     }
 }
 
-void server::start() {
-    printf("Starting server...\n");
-    epollFD = epoll_create(10);
-    if (epollFD == -1) {
-        perror("epoll_create");
-        //exit(EPOLL_ERROR);
-        throw EPOLL_ERROR;
-    }
-    qDebug() << "listener socket: " << listener;
-    qDebug() << "epoll socket: " << epollFD;
+volatile sig_atomic_t flag = 0;
+void my_function(int sig) { // can be called asynchronously
+  flag = 1; // set flag
+}
 
-    PIF *handler = new PIF();
+void server::start() {
+    running = true;
+    printf("Starting server...\n");
+    epoll = new EpollHandler(10);
+    qDebug() << "listener socket: " << listener;
+    qDebug() << "epoll socket: " << epoll;
+
+    PSF *handler = new PSF();
     handler->first = listener;
     /*
      * This function will be called when somebody 'knocks' to our server
      */
     handler->second = FVUI32([=](std::uint32_t) {
-        qDebug() << "I'm listener of new connections\n";
+        qDebug() << "I'm listener of new connections";
         sockaddr_storage theirAddr;
         socklen_t addrLen;
         addrLen = sizeof(theirAddr);
-        int newFD = accept(listener, (sockaddr *)&theirAddr, &addrLen);
-        if (newFD == -1) {
-            perror("accept");
-        } else {
-            setNonblocking(newFD);
-            PIF *clientEvent = new PIF();
-            clientEvent->first = newFD;
+        TCPSocket *newSocket = listener->acceptToNewSocket((sockaddr *)&theirAddr, &addrLen);
+        if (newSocket != NULL) {
+            int newFD = newSocket->getFD();
+            newSocket->setNonBlocking();
+            PSF *clientEvent = new PSF();
+            clientEvent->first = newSocket;
             /*
              * This function will be called when socket, who recieves data, changes
              */
@@ -125,51 +93,34 @@ void server::start() {
                 qDebug() << "I'm listener of client's from socket " << newFD << " changes";
                 if (events & (EPOLLRDHUP | EPOLLHUP)) {
                     printf("socket %d hung up!!!\n", newFD);
-                    close(newFD);
-                    clients.erase(newFD);
-                    //delete curEventHandler;
-                    epoll_ctl(epollFD, EPOLL_CTL_DEL, newFD, NULL);
+                    clients.erase(newSocket);
+                    //epoll_ctl(epollFD, EPOLL_CTL_DEL, newFD, NULL);
+                    epoll->deleteSocket(newSocket);
+                    qDebug() << "Deleting event...";
+                    delete newSocket;
+                    delete clientEvent;
                 } else if (events & EPOLLIN) {
-                    char buf[500];
-                    int nbytes = recieveFromFD(newFD, buf, 500);
-                    qDebug() << "\t\trecieved " << nbytes << " bytes:";
-                    if (nbytes == 0) {
-                        close(newFD);
-                        clients.erase(newFD);
-                        //delete curEventHandler;
-                        epoll_ctl(epollFD, EPOLL_CTL_DEL, newFD, NULL);
-                    } else if (nbytes > 0) {
-                        // TODO handler for onRecieve
-                        buf[nbytes] = '\0';
-                        printf("%s", buf);
-                        //std::set<int> ex;
-                        //ex.insert(newFD);
-                        sendToAllFromSet(clients, buf, nbytes, NULL);
-                    }
+                    onAccept(newSocket);
                 }
             });
-            epoll_event e;
-            e.events = EPOLLIN | EPOLLRDHUP;
-            e.data.ptr = static_cast<void *>(clientEvent);
-            clients.insert(newFD);
-            epoll_ctl(epollFD, EPOLL_CTL_ADD, newFD, &e);
+            clients.insert(newSocket);
+            //epoll_ctl(epollFD, EPOLL_CTL_ADD, newFD, &e);
+            epoll->addSocket(newSocket, static_cast<void*>(clientEvent), EPOLLIN | EPOLLRDHUP);
             printf("\t\tserver got connection from %s to new socket %d\n",
                    getAddrAsString(theirAddr).c_str(), newFD);
         }
     });
-    epoll_event ev;
-    ev.data.fd = listener;
-    ev.data.ptr = static_cast<void *>(handler);
-    ev.events = EPOLLIN;
 
-    if ((epoll_ctl(epollFD, EPOLL_CTL_ADD, listener, &ev)) == -1) {
-        perror("epoll_ctl");
-        //exit(EPOLL_ERROR);
-        throw EPOLL_ERROR;
-    }
+    epoll->addSocket(listener, static_cast<void *>(handler), EPOLLIN);
 
     printf("Server ready to get data\n");
+
+    signal(SIGINT, my_function);
     while (running) {
         execute();
+        if (flag) {
+            std::cout << "\n";
+            running = false;
+        }
     }
 }

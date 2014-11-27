@@ -2,76 +2,35 @@
 #define TCPCONNECTION_H
 
 #include <netdb.h>
-#include <set>
 #include <cstdlib>
 #include <cstdio>
 #include <cstdlib>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <string>
-
-enum ERRORS {
-    CONNECT_ERROR,
-    BIND_ERROR,
-    LISTEN_ERROR,
-    SOCKET_ERROR,
-    GETADDR_ERROR,
-    SETSOCK_ERROR,
-    SELECT_ERROR,
-    EPOLL_ERROR
-};
-
-/*std::string str_errors[8] = {
-    "connect error",
-    "bind error",
-    "listen error",
-    "socket error",
-    "getaddr error",
-    "setsock error",
-    "select error",
-    "epoll error"
-};*/
+#include <cstring>
+#include <iostream>
 
 
-/*class TCPSocket {
-    int sockfd;
-public:
-    TCPSocket(int fd) {
-        sockfd = fd;
-    }
-
-    int getFD() {
-        return sockfd;
-    }
-
-    ~TCPSocket() {
-        close(sockfd);
-    }
-};*/
-
+#include "tcpsocket.h"
+#include "tcpexception.h"
 
 class TCPConnection {
     addrinfo hints;
     addrinfo *res;
-    int sockfd;
-public:    
+    //int sockfd;
+public:
     TCPConnection();
     ~TCPConnection();
     void createAddress(char * address, char * port);
     // these 2 functions return socket file descriptor
-    int createConnection();
-    int createBindingSocket();
+    TCPSocket *createConnection();
+    TCPSocket *createBindingSocket();
 };
 
-void sendToFD(int fd, char * msg, int msgSize);
-void sendToAllFromFDSet(int fdMax, fd_set * fds,
-                        char * msg, int msgSize,
-                        std::set<int> * exception);
-void sendToAllFromSet(std::set<int> const& st,
+/*void sendToAllFromSet(std::set<int> const& st,
                       char *msg, int msgSize,
-                      std::set<int> * exception);
-void startListening(int fd, int count);
-std::string getAddrAsString(sockaddr_storage & addr);
+                      std::set<int> * exception);*/
 
 /*
  * returns:
@@ -79,9 +38,8 @@ std::string getAddrAsString(sockaddr_storage & addr);
  *  = 0 if fd was closed
  *  > 0 is msgSize
  */
-int recieveFromFD(int fd, char * buf, int maxSize);
-int setNonblocking(int fd);
+//int recieveFromFD(int fd, char * buf, int maxSize);
 
-std::string getStringByError(ERRORS e);
+std::string getAddrAsString(sockaddr_storage &addr);
 
 #endif // TCPCONNECTION_H

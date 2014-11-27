@@ -3,7 +3,6 @@
 #include <string.h>
 
 TCPConnection::TCPConnection() {
-    sockfd = -1;
 }
 
 void TCPConnection::createAddress(char *address, char *port) {
@@ -12,15 +11,14 @@ void TCPConnection::createAddress(char *address, char *port) {
     hints.ai_socktype = SOCK_STREAM; // tcp connection
     int rv;
     if ((rv = getaddrinfo(address, port, &hints, &res)) != 0) {
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        //exit(GETADDR_ERROR);
-        throw GETADDR_ERROR;
+        throw TCPException("getaddrinfo: " + std::string(gai_strerror(rv)));
     }
 }
 
-int TCPConnection::createConnection() {
+TCPSocket *TCPConnection::createConnection() {
     addrinfo * stableAddr = NULL;
     int resSock = -1;
+    int sockfd;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
         if (stableAddr->ai_socktype != SOCK_STREAM) {
             continue;
@@ -40,16 +38,15 @@ int TCPConnection::createConnection() {
         break; // we found good address
     }
     if (stableAddr == NULL) {
-        fprintf(stderr, "failed to connect\n");
-        //exit(CONNECT_ERROR);
-        throw CONNECT_ERROR;
+        throw TCPException("Failed to connect");
     }
-    return resSock;
+    return new TCPSocket(resSock);
 }
 
-int TCPConnection::createBindingSocket() {
+TCPSocket *TCPConnection::createBindingSocket() {
     addrinfo * stableAddr = NULL;
     int resSock = -1;
+    int sockfd;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
         if (stableAddr->ai_socktype != SOCK_STREAM) {
             continue;
@@ -65,8 +62,7 @@ int TCPConnection::createBindingSocket() {
         if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                        &yes, sizeof(int)) == -1) {
             perror("setsockport");
-            //exit(SETSOCK_ERROR);
-            throw SETSOCK_ERROR;
+            throw TCPException("Failed to set socket");
         }
         if (bind(sockfd, stableAddr->ai_addr,
                  stableAddr->ai_addrlen) == -1) {
@@ -78,38 +74,16 @@ int TCPConnection::createBindingSocket() {
         break;
     }
     if (stableAddr == NULL) {
-        fprintf(stderr, "failed to bind\n");
-        //exit(2);
-        throw BIND_ERROR;
+        throw TCPException("Failed to bind");
     }
-    return resSock;
+    return new TCPSocket(resSock);
 }
 
 TCPConnection::~TCPConnection() {
     freeaddrinfo(res);
-    if (sockfd != -1) {
-        close(sockfd);
-    }
 }
 
-void sendToFD(int fd, char *msg, int msgSize) {
-    if (send(fd, msg, msgSize, 0) == -1) {
-        perror("send");
-    }
-}
-
-void sendToAllFromFDSet(int fdMax, fd_set *fds, char *msg,
-                        int msgSize, std::set<int> * exception) {
-    for (int i = 0; i <= fdMax; i++) {
-        if (FD_ISSET(i, fds) &&
-                ((exception && exception->find(i) == exception->end()) ||
-                        !exception)) {
-            sendToFD(i, msg, msgSize);
-        }
-    }
-}
-
-void sendToAllFromSet(std::set<int> const& st, char *msg,
+/*void sendToAllFromSet(std::set<int> const& st, char *msg,
                       int msgSize, std::set<int> * exception) {
     std::set<int>::iterator it = st.begin();
     for (; it != st.end(); ++it) {
@@ -118,29 +92,7 @@ void sendToAllFromSet(std::set<int> const& st, char *msg,
             sendToFD(*it, msg, msgSize);
         }
     }
-}
-
-int recieveFromFD(int fd, char * buf, int maxSize) {
-    int nbytes;
-    if ((nbytes = recv(fd, buf, maxSize, 0)) <= 0) {
-        if (nbytes == 0) {
-            fprintf(stdout, "socket %d hung up\n", fd);
-            return 0;
-        } else {
-            perror("recv");
-            return -1;
-        }
-    }
-    return nbytes;
-}
-
-void startListening(int fd, int count) {
-    if (listen(fd, count) == -1) {
-        perror("listen");
-        //exit(LISTEN_ERROR);
-        throw LISTEN_ERROR;
-    }
-}
+}*/
 
 void *getInAddr(sockaddr *sa) {
     if (sa->sa_family == AF_INET) {
@@ -154,47 +106,4 @@ std::string getAddrAsString(sockaddr_storage &addr) {
     inet_ntop(addr.ss_family, getInAddr((sockaddr*)&addr), s, sizeof(s));
     std::string ss(s);
     return ss;
-}
-
-#include <sys/ioctl.h>
-int setNonblocking(int fd) {
-    int flags;
-
-    /* If they have O_NONBLOCK, use the Posix way to do it */
-#if defined O_NONBLOCK
-    /* Fixme: O_NONBLOCK is defined but broken on SunOS 4.1.x and AIX 3.2.5. */
-    if (-1 == (flags = fcntl(fd, F_GETFL, 0))) {
-        flags = 0;
-    }
-    return {
-        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    }
-#else
-    /* Otherwise, use the old way of doing it */
-    flags = 1;
-    return ioctl(fd, FIONBIO, &flags);
-#endif
-}
-
-std::string getStringByError(ERRORS e) {
-    switch (e) {
-        case (CONNECT_ERROR):
-            return "connect error";
-        case (BIND_ERROR):
-            return "bind error";
-        case (LISTEN_ERROR):
-            return "listen error";
-        case (SOCKET_ERROR):
-            return "socket error";
-        case (GETADDR_ERROR):
-            return "geta ddress error";
-        case (SETSOCK_ERROR):
-            return "set socket error";
-        case (SELECT_ERROR):
-            return "select error";
-        case (EPOLL_ERROR):
-            return "epoll error";
-        default:
-            return "unknown error";
-    }
 }
