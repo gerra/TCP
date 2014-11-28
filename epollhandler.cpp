@@ -42,7 +42,7 @@ void EpollHandler::deleteSocket(TCPSocket *socket) {
     if (socket != NULL) {
         if ((epoll_ctl(epollFD, EPOLL_CTL_DEL, socket->getFD(), NULL)) == -1) {
             perror("epoll_ctl");
-            throw TCPException("Deleting socket from epoll error");
+            //throw TCPException("Deleting socket from epoll error");
         }
     }
 }

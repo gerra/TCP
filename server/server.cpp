@@ -9,25 +9,30 @@ typedef std::pair<TCPSocket *, FVUI32 > PSF;
 server::server(char * addr, char * port, int clientsCount) {
     listener = NULL;
     epoll = NULL;
-
-    tcpConnection.createAddress(addr, port);
-    listener = tcpConnection.createBindingSocket();
-    listener->setNonBlocking();
-    listener->startListening(clientsCount);
+    try {
+        tcpConnection.createAddress(addr, port);
+        listener = tcpConnection.createBindingSocket();
+        listener->setNonBlocking();
+        listener->startListening(clientsCount);
+    } catch (TCPException &e) {
+        if (listener != NULL) {
+            delete listener;
+        }
+        throw;
+    }
 }
 
 server::~server() {
     qDebug() << "deleting server starts...";
     for (auto it = clients.begin(); it != clients.end(); ++it) {
-        // TODO try, catch
         if (epoll != NULL) {
             epoll->deleteSocket(*it);
         }
         delete *it;
     }
+
     if (listener != NULL) {
         if (epoll != NULL) {
-            //epoll_ctl(epollFD, EPOLL_CTL_DEL, listener->getFD(), NULL);
             epoll->deleteSocket(listener);
             delete epoll;
         }
@@ -37,13 +42,13 @@ server::~server() {
             delete epoll;
         }
     }
+    clients.clear();
     qDebug() << "...deleting server ends";
 }
 
 void server::execute() {
     const int MAX_EVENTS = 10;
     epoll_event events[MAX_EVENTS];
-    //int nfds = epoll_wait(epollFD, events, MAX_EVENTS, -1);
     int nfds = epoll->getEvents(events, MAX_EVENTS);
     if (nfds < 0) {
         return;
@@ -59,7 +64,7 @@ void server::execute() {
 }
 
 volatile sig_atomic_t flag = 0;
-void my_function(int sig) { // can be called asynchronously
+void my_function(int) { // can be called asynchronously
   flag = 1; // set flag
 }
 
@@ -82,7 +87,6 @@ void server::start() {
         addrLen = sizeof(theirAddr);
         TCPSocket *newSocket = listener->acceptToNewSocket((sockaddr *)&theirAddr, &addrLen);
         if (newSocket != NULL) {
-            int newFD = newSocket->getFD();
             newSocket->setNonBlocking();
             PSF *clientEvent = new PSF();
             clientEvent->first = newSocket;
@@ -90,28 +94,56 @@ void server::start() {
              * This function will be called when socket, who recieves data, changes
              */
             clientEvent->second = FVUI32([=](std::uint32_t events) {
-                qDebug() << "I'm listener of client's from socket " << newFD << " changes";
+                qDebug() << "I'm listener of client's from socket " << newSocket->getFD() << " changes";
                 if (events & (EPOLLRDHUP | EPOLLHUP)) {
-                    printf("socket %d hung up!!!\n", newFD);
+                    printf("socket %d hung up!!!\n", newSocket->getFD());
                     clients.erase(newSocket);
-                    //epoll_ctl(epollFD, EPOLL_CTL_DEL, newFD, NULL);
                     epoll->deleteSocket(newSocket);
-                    qDebug() << "Deleting event...";
                     delete newSocket;
+                    qDebug() << "Deleting event...";
                     delete clientEvent;
                 } else if (events & EPOLLIN) {
-                    onAccept(newSocket);
+                    try {
+                        onAccept(*newSocket);
+                    } catch (...) {
+                        clients.erase(newSocket);
+                        epoll->deleteSocket(newSocket);
+                        delete newSocket;
+                        delete clientEvent;
+                        throw;
+                    }
+
+                    /*
+                     * if user closed socket in his function
+                     */
+                    if (newSocket->isClosed()) {
+                        clients.erase(newSocket);
+/*???*/                        //epoll->deleteSocket(newSocket); // it is managing by EPOLLHUP
+                        delete newSocket;
+                        delete clientEvent;
+                    }
                 }
             });
             clients.insert(newSocket);
-            //epoll_ctl(epollFD, EPOLL_CTL_ADD, newFD, &e);
-            epoll->addSocket(newSocket, static_cast<void*>(clientEvent), EPOLLIN | EPOLLRDHUP);
-            printf("\t\tserver got connection from %s to new socket %d\n",
-                   getAddrAsString(theirAddr).c_str(), newFD);
+            try {
+                epoll->addSocket(newSocket, static_cast<void*>(clientEvent), EPOLLIN | EPOLLRDHUP);
+                printf("\t\tserver got connection from %s to new socket %d\n",
+                       getAddrAsString(theirAddr).c_str(), newSocket->getFD());
+            } catch (EpollException &e) {
+                std::cerr << "Unnable to add client: " + e.getMessage() << "\n";
+                clients.erase(newSocket);
+                delete newSocket;
+                delete clientEvent;
+            }
         }
     });
 
-    epoll->addSocket(listener, static_cast<void *>(handler), EPOLLIN);
+    try {
+        epoll->addSocket(listener, static_cast<void *>(handler), EPOLLIN);
+    } catch (EpollException &e) {
+        delete handler;
+        throw TCPException("Unnable to start server: " + e.getMessage());
+    }
 
     printf("Server ready to get data\n");
 

@@ -17,66 +17,80 @@ void TCPConnection::createAddress(char *address, char *port) {
 
 TCPSocket *TCPConnection::createConnection() {
     addrinfo * stableAddr = NULL;
-    int resSock = -1;
-    int sockfd;
+    TCPSocket *resultSocket = NULL;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
         if (stableAddr->ai_socktype != SOCK_STREAM) {
             continue;
         }
-        if ((sockfd = socket(stableAddr->ai_family,
-                             stableAddr->ai_socktype,
-                             stableAddr->ai_protocol)) == -1) {
-            perror("socket");
+        try {
+            resultSocket = new TCPSocket(stableAddr);
+        } catch (TCPException &e) {
+            delete resultSocket;
+            resultSocket = NULL;
             continue;
         }
-        if (connect(sockfd, stableAddr->ai_addr, stableAddr->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("connect: ");
+
+        try {
+            resultSocket->connectToAddr(stableAddr);
+        } catch (TCPException &e) {
+            delete resultSocket;
+            resultSocket = NULL;
             continue;
         }
-        resSock = sockfd;
         break; // we found good address
     }
     if (stableAddr == NULL) {
+        if (resultSocket != NULL) {
+            delete resultSocket;
+            resultSocket = NULL;
+        }
         throw TCPException("Failed to connect");
     }
-    return new TCPSocket(resSock);
+    return resultSocket;
 }
 
 TCPSocket *TCPConnection::createBindingSocket() {
-    addrinfo * stableAddr = NULL;
-    int resSock = -1;
-    int sockfd;
+    addrinfo *stableAddr = NULL;
+
+    TCPSocket *resultSocket = NULL;
     for (stableAddr = res; stableAddr != NULL; stableAddr = stableAddr->ai_next) {
         if (stableAddr->ai_socktype != SOCK_STREAM) {
             continue;
         }
-        if ((sockfd = socket(stableAddr->ai_family,
-                             stableAddr->ai_socktype,
-                             stableAddr->ai_protocol)) == -1) {
-            perror("socket");
+        try {
+            resultSocket = new TCPSocket(stableAddr);
+        } catch (TCPException &e) {
+            delete resultSocket;
+            resultSocket = NULL;
             continue;
         }
-        // reusing the port
-        int yes = 1;
-        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-                       &yes, sizeof(int)) == -1) {
-            perror("setsockport");
-            throw TCPException("Failed to set socket");
+
+        try {
+            resultSocket->reusePort();
+        } catch (TCPException &e) {
+            delete resultSocket;
+            resultSocket = NULL;
+            throw;
         }
-        if (bind(sockfd, stableAddr->ai_addr,
-                 stableAddr->ai_addrlen) == -1) {
-            close(sockfd);
-            perror("bind");
+
+        try {
+            resultSocket->bindSocket(stableAddr);
+        } catch (TCPException &e) {
+            delete resultSocket;
+            resultSocket = NULL;
             continue;
         }
-        resSock = sockfd; // we found good address
         break;
     }
+
     if (stableAddr == NULL) {
+        if (resultSocket != NULL) {
+            delete resultSocket;
+            resultSocket = NULL;
+        }
         throw TCPException("Failed to bind");
     }
-    return new TCPSocket(resSock);
+    return resultSocket;
 }
 
 TCPConnection::~TCPConnection() {

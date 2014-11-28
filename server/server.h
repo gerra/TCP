@@ -4,6 +4,7 @@
 #include <set>
 #include <functional>
 #include <signal.h>
+#include <memory>
 
 #include <QtDebug>
 
@@ -31,7 +32,7 @@ public:
     ~server();
     void start();
 
-    std::function<void(TCPSocket *)> onAccept;
+    std::function<void(TCPSocket&)> onAccept;
 };
 
 #endif // SERVER_H

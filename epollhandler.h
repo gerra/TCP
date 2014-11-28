@@ -4,6 +4,16 @@
 #include <sys/epoll.h>
 #include "tcpconnection.h"
 
+class EpollException : std::exception {
+    std::string msg;
+public:
+    EpollException(std::string msg) : msg(msg) {}
+    EpollException(const char *msg) : msg(msg) {}
+    std::string getMessage() {
+        return msg;
+    }
+};
+
 class EpollHandler {
     int epollFD;
 public:

@@ -11,15 +11,22 @@
 
 class TCPSocket {
     int sockfd;
-public:
+    bool wasClosed;
     TCPSocket(int fd);
+public:
+    TCPSocket(addrinfo *addr);
     ~TCPSocket();
+    void bindSocket(addrinfo *addr);
+    void connectToAddr(addrinfo *addr);
+    void reusePort();
     int getFD();
     int setNonBlocking();
     void sendMsg(char *msg);
     int recieveMsg(char * buf, int maxSize);
     void startListening(int count);
     TCPSocket *acceptToNewSocket(sockaddr *addr, socklen_t *len);
+    void closeSocket();
+    bool isClosed();
 };
 
 #endif // TCPSOCKET_H

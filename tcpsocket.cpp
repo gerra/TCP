@@ -2,12 +2,64 @@
 
 TCPSocket::TCPSocket(int fd) {
     sockfd = fd;
+    wasClosed = false;
+}
+
+TCPSocket::TCPSocket(addrinfo *addr) {
+    if (addr->ai_socktype != SOCK_STREAM) {
+        throw TCPException("Bad socket type");
+    }
+    wasClosed = false;
+    sockfd = socket(addr->ai_family,
+                    addr->ai_socktype,
+                    addr->ai_protocol);
+    if (sockfd == -1) {
+        perror("socket");
+        throw TCPException("Failed to create socket");
+    }
 }
 
 TCPSocket::~TCPSocket() {
-    if (sockfd >= 0) {
+    if (sockfd >= 0 && !wasClosed) {
         close(sockfd);
     }
+}
+
+void TCPSocket::closeSocket() {
+    if (sockfd >= 0 && !wasClosed) {
+        close(sockfd);
+        wasClosed = true;
+    }
+}
+
+void TCPSocket::reusePort() {
+    // reusing the port
+    int yes = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
+                   &yes, sizeof(int)) == -1) {
+        perror("setsockport");
+        throw TCPException("Failed to set socket on port");
+    }
+}
+
+void TCPSocket::bindSocket(addrinfo *addr) {
+    int res = bind(sockfd, addr->ai_addr, addr->ai_addrlen);
+    if (res == -1) {
+        perror("bind");
+        throw TCPException("Failed to bind");
+    }
+}
+
+void TCPSocket::connectToAddr(addrinfo *addr) {
+    int res = connect(sockfd, addr->ai_addr, addr->ai_addrlen);
+    if (res == -1) {
+        perror("connect: ");
+        throw TCPException("Failed to connect");
+    }
+}
+
+bool TCPSocket::isClosed() {
+    return wasClosed;
 }
 
 int TCPSocket::getFD() {
@@ -47,7 +99,6 @@ int TCPSocket::recieveMsg(char * buf, int maxSize) {
             return 0;
         } else {
             perror("recv");
-            //throw RECIEVE_ERROR;
             throw TCPException("Recieve error");
         }
     }
@@ -58,8 +109,6 @@ int TCPSocket::recieveMsg(char * buf, int maxSize) {
 void TCPSocket::startListening(int count) {
     if (listen(sockfd, count) == -1) {
         perror("listen");
-        //exit(LISTEN_ERROR);
-        //throw LISTEN_ERROR;
         throw TCPException("Listen error");
     }
 }
