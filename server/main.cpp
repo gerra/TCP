@@ -12,12 +12,11 @@ int main() {
         myServer.onAccept = [](TCPSocket &sock) {
             char buf[500];
             sock.recieveMsg(buf, 500);
-            std::cout << buf;
+            std::cout << std::string(buf);
             sock.sendMsg(buf);
-            if (buf[0] == 'T') {
+            if (buf[0] == '~' && buf[1] == 'd') {
                 sock.closeSocket();
             }
-            throw 5;
         };
         myServer.start();
     } catch (TCPException e) {

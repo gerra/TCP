@@ -6,15 +6,39 @@
 typedef std::function<void(std::uint32_t)> FVUI32;
 typedef std::pair<TCPSocket *, FVUI32 > PSF;
 
-server::server(char * addr, char * port, int clientsCount) {
+server::server(char * addr, char * port, int maxClientsCount) {
     listener = NULL;
     epoll = NULL;
     try {
+        epoll = new EpollHandler(maxClientsCount * 2);
         tcpConnection.createAddress(addr, port);
         listener = tcpConnection.createBindingSocket();
         listener->setNonBlocking();
-        listener->startListening(clientsCount);
+        listener->startListening(maxClientsCount);
     } catch (TCPException &e) {
+        if (epoll != NULL) {
+            delete epoll;
+        }
+        if (listener != NULL) {
+            delete listener;
+        }
+        throw;
+    }
+}
+
+server::server(char * addr, char * port, int maxClientsCount, EpollHandler *epoll) {
+    listener = NULL;
+    this->epoll = NULL;
+    try {
+        this->epoll = epoll;
+        tcpConnection.createAddress(addr, port);
+        listener = tcpConnection.createBindingSocket();
+        listener->setNonBlocking();
+        listener->startListening(maxClientsCount);
+    } catch (TCPException &e) {
+        if (this->epoll != NULL) {
+            delete this->epoll;
+        }
         if (listener != NULL) {
             delete listener;
         }
@@ -71,7 +95,6 @@ void my_function(int) { // can be called asynchronously
 void server::start() {
     running = true;
     printf("Starting server...\n");
-    epoll = new EpollHandler(10);
     qDebug() << "listener socket: " << listener;
     qDebug() << "epoll socket: " << epoll;
 
@@ -112,11 +135,11 @@ void server::start() {
                         delete clientEvent;
                         throw;
                     }
-
                     /*
                      * if user closed socket in his function
                      */
                     if (newSocket->isClosed()) {
+                        qDebug() << "user closed the socket";
                         clients.erase(newSocket);
 /*???*/                        //epoll->deleteSocket(newSocket); // it is managing by EPOLLHUP
                         delete newSocket;

@@ -19,19 +19,15 @@ class server {
      */
     TCPSocket *listener; // listening socket
     EpollHandler *epoll; // epollHandler for managing of events
-
-    //int epollFD; // epoll socket
-
-
     bool running;
     std::set<TCPSocket*> clients; // file descriptors of connected clients
 
     void execute();
 public:
-    server(char *addr, char *port, int clientsCount);
+    server(char *addr, char *port, int maxClientsCount);
+    server(char *addr, char *port, int maxClientsCount, EpollHandler *epoll);
     ~server();
     void start();
-
     std::function<void(TCPSocket&)> onAccept;
 };
 
